@@ -8,10 +8,8 @@ import (
 
 	endpoints "github.com/SHRYNSH-NETAM/Go-Backend/EndPoints"
 	initializers "github.com/SHRYNSH-NETAM/Go-Backend/Initializers"
-	// "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
-	// "golang.org/x/crypto/bcrypt"
 )
 
 func init(){
@@ -20,12 +18,18 @@ func init(){
 }
 
 func main() {
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
 	r := mux.NewRouter()
+	handler := c.Handler(r)
 	r.HandleFunc("/",endpoints.HomeHandler).Methods("POST")
 	r.HandleFunc("/login",endpoints.LoginHandler).Methods("POST")
 	r.HandleFunc("/signup",endpoints.SignupHandler).Methods("POST")
 	r.HandleFunc("/forget",endpoints.Forgethandler).Methods("POST")
-	handler := cors.Default().Handler(r)
 	PORT := os.Getenv("PORT")
 	fmt.Printf("Starting the server at %v\n", PORT)
 	log.Fatal(http.ListenAndServe(":8000",handler))

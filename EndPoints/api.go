@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	initializers "github.com/SHRYNSH-NETAM/Go-Backend/Initializers"
+	"github.com/SHRYNSH-NETAM/Go-Backend/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -15,13 +17,35 @@ type User struct {
 	Pass string `json:"pass"`
 }
 
+type res struct {
+	Username string `json:"username"`
+	Email string `json:"email"`
+	Token string `json:"token"`
+}
+
 func HomeHandler(w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", "application/json")
-	var temp User
+	var temp res
 	if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
 		log.Fatal(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return 
+	}
+
+	tokenString := r.Header.Get("Authorization")
+	if tokenString == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(User{})
+		return
+	}
+
+	tokenString = tokenString[len("Bearer "):]
+	
+	err := utils.VerifyToken(tokenString)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(User{})
+		return
 	}
 
 	alreadyexists := initializers.FindData(initializers.User{Email: temp.Email});
@@ -42,11 +66,16 @@ func LoginHandler(w http.ResponseWriter, r *http.Request){
 		w.WriteHeader(http.StatusBadRequest)
 		return 
 	}
-
 	alreadyexists := initializers.FindData(initializers.User{Email: temp.Email});
-	if(alreadyexists.Pass==temp.Pass){
+	err := bcrypt.CompareHashAndPassword([]byte(alreadyexists.Pass),[]byte(temp.Pass))
+	if(err==nil){
+		tokenString, error := utils.CreateToken(temp.Email)
+		if error != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(res{})
+		}
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(User{Username: alreadyexists.Username, Email: alreadyexists.Email})
+		json.NewEncoder(w).Encode(res{Username: alreadyexists.Username, Email: alreadyexists.Email, Token: tokenString})
 		return
 	}
 
@@ -70,7 +99,9 @@ func SignupHandler(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	initializers.AddData(initializers.User{Username: temp.Username, Email: temp.Email, Pass: temp.Pass})
+	hashpass, _ := bcrypt.GenerateFromPassword([]byte(temp.Pass), 14)
+
+	initializers.AddData(initializers.User{Username: temp.Username, Email: temp.Email, Pass: string(hashpass)})
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(User{})
 }
